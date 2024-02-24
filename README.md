@@ -1,3 +1,11 @@
 # Anonymous Message Board
 
-This is the boilerplate for the Anonymous Message Board project. Instructions for completing your project can be found at https://www.freecodecamp.org/learn/information-security/information-security-projects/anonymous-message-board
+My own work on Anonymous Message Board using templates from [freeCodeCamp] https://www.freecodecamp.org/learn/information-security/information-security-projects/anonymous-message-board
+
+## Required install
+
+install npm
+
+## Run it
+
+npm start
