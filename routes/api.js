@@ -42,8 +42,8 @@ module.exports = function (app) {
       // console.log("HER:", req.body);
 
       // Insert new thread into the database
-      let sql = `INSERT INTO thread (board, text, delete_password) VALUES (?, ?, ?)`;
-      db.run(sql, [board, text, delete_password], (err) => {
+      let insert_thread = `INSERT INTO thread (board, text, delete_password) VALUES (?, ?, ?)`;
+      db.run(insert_thread, [board, text, delete_password], (err) => {
         if (err) {
           console.error(err.message);
           return res.status(500).send({ error: "Internal Server Error" });
@@ -117,7 +117,7 @@ module.exports = function (app) {
     .put((req, res) => {
       const { thread_id, report_id } = req.body;
 
-      let sql = `UPDATE thread SET reported = true WHERE _id = ?`;
+      let update = `UPDATE thread SET reported = true WHERE _id = ?`;
       let exist_thread = `SELECT _id FROM thread WHERE _id = ?`;
       let use_id;
 
@@ -137,8 +137,9 @@ module.exports = function (app) {
         }
         id_check = id_checkobj._id;
 
+        // Check if the id exist in db if so update to true the id.
         if (use_id == id_check) {
-          db.run(sql, [use_id], (err) => {
+          db.run(update, [use_id], (err) => {
             if (err) {
               console.error(err.message);
               return res.status(500).send({ error: "Internal Server Error" });
@@ -146,19 +147,16 @@ module.exports = function (app) {
 
             res.send("reported");
           });
-        } else {
-          res.send("Incorrect input");
         }
       });
     })
 
-    // You can send a DELETE request to /api/threads/{board}
-    // and pass along the thread_id & delete_password to delete the thread.
-    // Returned will be the string incorrect password or success.
+    // Delete method. Deletes thread
     .delete((req, res) => {
       const { thread_id, delete_password } = req.body;
-
+      // Delete record from db
       let delete_row = `DELETE FROM thread WHERE _id = ? `;
+      // Retrieve the password for comparing.
       let get_password = `SELECT delete_password FROM thread WHERE _id = ?`;
       db.get(get_password, [thread_id], (err, passwordobj) => {
         if (err) {
@@ -174,6 +172,7 @@ module.exports = function (app) {
         password = passwordobj.delete_password;
         // console.log( delete_password, password);
 
+        // If the password matches with the password stored in db proceed with deleting the thread.
         if (delete_password === password) {
           db.run(delete_row, [thread_id], (err) => {
             if (err) {
@@ -182,6 +181,7 @@ module.exports = function (app) {
             }
             res.send("success");
           });
+          // Output to user incorrect password.
         } else {
           res.send("incorrect password");
         }
