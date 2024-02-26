@@ -31,9 +31,9 @@ process.on("SIGINT", function () {
 });
 
 module.exports = function (app) {
-  // POST method. Post text and delete_password and add to db. Board is gathered by the board params.
   app
     .route("/api/threads/:board")
+    // POST method. Post text and delete_password and add to db. Board is gathered by the board params.
     .post((req, res) => {
       // For the board name we are posting on.
       const board = req.params.board;
@@ -118,28 +118,74 @@ module.exports = function (app) {
       const { thread_id, report_id } = req.body;
 
       let sql = `UPDATE thread SET reported = true WHERE _id = ?`;
-      // We have two ways to report a thread one via API index page and the other via the board page.
-      if (thread_id != undefined) {
-        db.run(sql, [thread_id], (err) => {
-          if (err) {
-            console.error(err.message);
-            return res.status(500).send({ error: "Internal Server Error" });
-          }
-          res.send("reported");
-        });
-      } else {
-        db.run(sql, [report_id], (err) => {
-          if (err) {
-            console.error(err.message);
-            return res.status(500).send({ error: "Internal Server Error" });
-          }
-          res.send("reported");
-        });
-      }
+      let exist_thread = `SELECT _id FROM thread WHERE _id = ?`;
+      let use_id;
+
+      // We have two ways to report a thread one via API index page and the other via the board page.x
+      thread_id != undefined ? (use_id = thread_id) : (use_id = report_id);
+
+      // Check if thread exist in database.
+      db.get(exist_thread, [use_id], (err, id_checkobj) => {
+        if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
+        }
+        // If id undefined means doesn't exist.
+        else if (id_checkobj === undefined) {
+          res.send("Thread does not exist");
+          return;
+        }
+        id_check = id_checkobj._id;
+
+        if (use_id == id_check) {
+          db.run(sql, [use_id], (err) => {
+            if (err) {
+              console.error(err.message);
+              return res.status(500).send({ error: "Internal Server Error" });
+            }
+
+            res.send("reported");
+          });
+        } else {
+          res.send("Incorrect input");
+        }
+      });
     })
 
+    // You can send a DELETE request to /api/threads/{board}
+    // and pass along the thread_id & delete_password to delete the thread.
+    // Returned will be the string incorrect password or success.
     .delete((req, res) => {
-      console.log(req.body);
+      const { thread_id, delete_password } = req.body;
+
+      let delete_row = `DELETE FROM thread WHERE _id = ? `;
+      let get_password = `SELECT delete_password FROM thread WHERE _id = ?`;
+      db.get(get_password, [thread_id], (err, passwordobj) => {
+        if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
+        }
+        // If password undefined means doesnt exist based of the _id which means that the thread doesn't exist.
+        else if (passwordobj === undefined) {
+          res.send("Thread does not exist");
+          return;
+        }
+        // Interested in the password string only.
+        password = passwordobj.delete_password;
+        // console.log( delete_password, password);
+
+        if (delete_password === password) {
+          db.run(delete_row, [thread_id], (err) => {
+            if (err) {
+              console.error(err.message);
+              return res.status(500).send({ error: "Internal Server Error" });
+            }
+            res.send("success");
+          });
+        } else {
+          res.send("incorrect password");
+        }
+      });
     });
 
   app.route("/api/replies/:board");
