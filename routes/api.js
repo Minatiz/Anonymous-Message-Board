@@ -33,6 +33,7 @@ process.on("SIGINT", function () {
 module.exports = function (app) {
   app
     .route("/api/threads/:board")
+
     // POST method. Post text and delete_password and add to db. Board is gathered by the board params.
     .post((req, res) => {
       // For the board name we are posting on.
@@ -42,7 +43,9 @@ module.exports = function (app) {
       // console.log("HER:", req.body);
 
       // Insert new thread into the database
-      let insert_thread = `INSERT INTO thread (board, text, delete_password) VALUES (?, ?, ?)`;
+      let insert_thread = `
+      INSERT INTO thread (board, text, delete_password) 
+      VALUES (?, ?, ?)`;
       db.run(insert_thread, [board, text, delete_password], (err) => {
         if (err) {
           console.error(err.message);
@@ -117,8 +120,14 @@ module.exports = function (app) {
     .put((req, res) => {
       const { thread_id, report_id } = req.body;
 
-      let update = `UPDATE thread SET reported = true WHERE _id = ?`;
-      let exist_thread = `SELECT _id FROM thread WHERE _id = ?`;
+      let update = `
+      UPDATE thread 
+      SET reported = true 
+      WHERE _id = ?`;
+
+      let exist_thread = `
+      SELECT _id FROM thread 
+      WHERE _id = ?`;
       let use_id;
 
       // We have two ways to report a thread one via API index page and the other via the board page.x
@@ -155,9 +164,14 @@ module.exports = function (app) {
     .delete((req, res) => {
       const { thread_id, delete_password } = req.body;
       // Delete record from db
-      let delete_row = `DELETE FROM thread WHERE _id = ? `;
+      let delete_row = `
+      DELETE FROM thread 
+      WHERE _id = ? `;
+
       // Retrieve the password for comparing.
-      let get_password = `SELECT delete_password FROM thread WHERE _id = ?`;
+      let get_password = `
+      SELECT delete_password FROM thread 
+      WHERE _id = ?`;
       db.get(get_password, [thread_id], (err, passwordobj) => {
         if (err) {
           console.error(err.message);
@@ -188,5 +202,88 @@ module.exports = function (app) {
       });
     });
 
-  app.route("/api/replies/:board");
+  app
+    .route("/api/replies/:board")
+
+    // GET method. See the thread with all replies that exist for that thread.
+    .get((req, res) => {
+      const { thread_id } = req.query;
+
+      // Select the thread.
+      let selectthread = `
+      SELECT * FROM thread 
+      WHERE _id = ?`;
+
+      db.get(selectthread, [thread_id], (err, one_thread) => {
+        if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
+        }
+
+        // Deleting delete_password and reported field from the thread.
+        delete one_thread.delete_password;
+        delete one_thread.reported;
+
+        // Get the replies in the thread
+        let get_replies = `
+        SELECT * FROM replies 
+        WHERE thread_id = ?
+        ORDER BY created_on DESC`;
+
+        db.all(get_replies, [one_thread._id], (err, all_replies) => {
+          if (err) {
+            console.error(err.message);
+            return res.status(500).send({ error: "Internal Server Error" });
+          }
+
+          // Iterating through replies for that thread found.
+          all_replies.forEach((reply_in_thread) => {
+            // Deleting delete_password and reported field from the replies.
+            delete reply_in_thread.delete_password;
+            delete reply_in_thread.reported;
+          });
+
+          // Adding all replies to the thread. Due to 2 tables in database one for thread and replies connecting them.
+          one_thread.replies = all_replies;
+
+          // Send the thread with all replies as the response
+          res.send(one_thread);
+        });
+      });
+    })
+
+    // POST method. Post reply to a thread and bumps the thread timestamp.
+    .post((req, res) => {
+      const { text, delete_password, thread_id } = req.body;
+      const board = req.params.board;
+
+      // Insert the reply
+      let insert_reply = `
+      INSERT INTO replies (board, text, delete_password, thread_id) 
+      VALUES (?,?,?,?)`;
+
+      // Update bumped_on date in the thread table
+      let update_bumped_on = `
+      UPDATE thread 
+      SET bumped_on = CURRENT_TIMESTAMP 
+      WHERE _id = ?`;
+
+      db.run(insert_reply, [board, text, delete_password, thread_id], (err) => {
+        if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
+        }
+
+        // After successfully inserting the reply, update bumped_on date
+        db.run(update_bumped_on, [thread_id], (err) => {
+          if (err) {
+            console.error(err.message);
+            return res.status(500).send({ error: "Internal Server Error" });
+          }
+
+          // Send confirmation
+          res.status(200).redirect("back");
+        });
+      });
+    });
 };
