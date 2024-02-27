@@ -139,7 +139,7 @@ module.exports = function (app) {
           console.error(err.message);
           return res.status(500).send({ error: "Internal Server Error" });
         }
-        // If id undefined means doesn't exist.
+        // If id undefined means it doesn't exist.
         else if (id_checkobj === undefined) {
           res.send("Thread does not exist");
           return;
@@ -163,7 +163,8 @@ module.exports = function (app) {
     // Delete method. Deletes thread
     .delete((req, res) => {
       const { thread_id, delete_password } = req.body;
-      // Delete record from db
+
+      // Delete record from thread table
       let delete_row = `
       DELETE FROM thread 
       WHERE _id = ? `;
@@ -284,6 +285,88 @@ module.exports = function (app) {
           // Send confirmation
           res.status(200).redirect("back");
         });
+      });
+    })
+    .put((req, res) => {
+      const { thread_id, reply_id } = req.body;
+      // console.log(thread_id, reply_id, req.params.board);
+
+      // Update reportede for the reply to true
+      let update = `
+      UPDATE replies
+      SET reported = true
+      WHERE _id = ? AND thread_id = ?`;
+
+      // Checking if the reply exist
+      let exist_reply = `
+      SELECT _id, thread_id FROM replies
+      WHERE _id = ? AND thread_id = ?`;
+
+      db.get(exist_reply, [reply_id, thread_id], (err, reply_obj) => {
+        if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
+        }
+        // If reply_obj is undefined means it doesn't exist.
+        else if (reply_obj === undefined) {
+          res.send("Reply does not exist");
+          return;
+        }
+        // Adding _id to the reply object.
+        reply_obj_id = reply_obj._id;
+        // console.log(reply_obj, reply_obj_id);
+
+        // If the reply_id matches with the reply id from database we update.
+        if (reply_id === reply_obj_id) {
+          db.run(update, [reply_obj_id, thread_id], (err) => {
+            if (err) {
+              console.error(err.message);
+              return res.status(500).send({ error: "Internal Server Error" });
+            }
+
+            res.send("reported");
+          });
+        }
+      });
+    })
+
+    // DELETE method. "Deletes" the reply text, replaces the text with [deleted]
+    .delete((req, res) => {
+      const { thread_id, reply_id, delete_password } = req.body;
+      // console.log(thread_id, reply_id, delete_password, req.params.board);
+
+      // Delete record from replies table
+      let delete_row_r = `
+      UPDATE replies
+      SET text = "[deleted]" 
+      WHERE _id = ? AND thread_id = ?`;
+
+      // Get password for that specific reply
+      let get_password_r = `
+      SELECT delete_password FROM replies
+      WHERE _id = ? AND thread_id = ?`;
+
+      db.get(get_password_r, [reply_id, thread_id], (err, passwordobj) => {
+        if (err) {
+        }
+
+        // Adding delete_password to the password object
+        password = passwordobj.delete_password;
+
+        // console.log(password);
+
+        // If the password matches with the password stored in db proceed with deleting the reply.
+        if (delete_password === password) {
+          db.run(delete_row_r, [reply_id, thread_id], (err) => {
+            if (err) {
+              console.error(err.message);
+              return res.status(500).send({ error: "Internal Server Error" });
+            }
+            res.send("success");
+          });
+        } else {
+          res.send("incorrect password");
+        }
       });
     });
 };
