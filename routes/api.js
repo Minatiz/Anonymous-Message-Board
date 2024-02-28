@@ -348,12 +348,14 @@ module.exports = function (app) {
 
       db.get(get_password_r, [reply_id, thread_id], (err, passwordobj) => {
         if (err) {
+          console.error(err.message);
+          return res.status(500).send({ error: "Internal Server Error" });
         }
 
         // Adding delete_password to the password object
         password = passwordobj.delete_password;
 
-        // console.log(password);
+        // console.log("this in api:", password);
 
         // If the password matches with the password stored in db proceed with deleting the reply.
         if (delete_password === password) {
